@@ -1,0 +1,72 @@
+//--- paramètres d'entrée
+input double Lots = 0.10; // volume de trading
+input int MagicNumber = 10015125010; // numéro unique pour l'EA
+input int Slippage = 3; // tolérance de slippage
+int MacdFastEma = 12; // période de la moyenne mobile rapide du MACD
+int MacdSlowEma = 26; // période de la moyenne mobile lente du MACD
+int MacdSignal = 9; // période de la ligne de signal du MACD
+int ticket;
+int ticketAchat;
+int lastTicket;
+int ticketvente;
+
+//--- variables globales
+int ordersCount; // nombre d'ordres passés
+
+//+------------------------------------------------------------------+
+//| expert advisor initialisation                                     |
+//+------------------------------------------------------------------+
+int OnInit()
+{
+    // Vérification de la disponibilité du symbole
+    if (!SymbolInfoDouble(_Symbol, SYMBOL_ASK))
+    {
+        Print("Symbole non disponible ", _Symbol);
+        return (INIT_FAILED);
+    }
+    return (INIT_SUCCEEDED);
+}
+
+//+------------------------------------------------------------------+
+//| expert advisor à chaque tick                                      |
+//+------------------------------------------------------------------+
+void OnTick()
+{
+    double macd1 = iMACD(_Symbol, _Period, MacdFastEma, MacdSlowEma, MacdSignal, PRICE_CLOSE, MODE_MAIN, 0);
+    double signa1 = iMACD(_Symbol, _Period, MacdFastEma, MacdSlowEma, MacdSignal, PRICE_CLOSE, MODE_SIGNAL, 0);
+    double macd2 = iMACD(_Symbol, _Period, MacdFastEma, MacdSlowEma, MacdSignal, PRICE_CLOSE, MODE_MAIN, 1);
+    double signa2 = iMACD(_Symbol, _Period, MacdFastEma, MacdSlowEma, MacdSignal, PRICE_CLOSE, MODE_SIGNAL, 1);
+    double macd3 = iMACD(_Symbol, _Period, MacdFastEma, MacdSlowEma, MacdSignal, PRICE_CLOSE, MODE_MAIN, 2);
+    double signa3 = iMACD(_Symbol, _Period, MacdFastEma, MacdSlowEma, MacdSignal, PRICE_CLOSE, MODE_SIGNAL, 2);
+
+    // Vérification des conditions d'ouverture d'un ordre d'achat
+    double deltadown = (macd1 - signa1);
+    if (signa3 < 0 && macd1 < 0 && signa3 < signa2 && signa2 < signa1 &&  macd3 < macd2 && macd2 < macd1 && deltadown > 0.0003 && OrdersTotal() < 1)
+    {
+        // Passage d'un ordre d'achat
+        int ticketAchat = OrderSend(_Symbol, OP_BUYSTOP, Lots, Ask, Slippage, 0, 0, "Ordre Achat", MagicNumber, 0, Green);
+        {
+            ordersCount++;
+        }
+        // Stocker le ticket de l'ordre d'achat pour le fermer plus tard
+        lastTicket = ticketAchat;
+    }
+
+    // Vérification des conditions de fermeture d'un ordre d'achat
+    if (lastTicket >= 1)
+    {
+        double deltaup = (signa3 - macd3);
+        if (signa1 > macd1 && signa1 > macd1 && macd1 > 0 && macd3 > macd2 && macd2 > macd1 && deltaup > 0.00001  && OrdersTotal() >= 1)
+    
+        {
+            double closePrice = Bid;
+            bool closeOrder = OrderClose(lastTicket, Lots, closePrice, Slippage, Red);
+            int ticketvente = OrderSend(_Symbol, OP_SELLSTOP, Lots, Ask, Slippage, 0, 0, "Ordre Achat", MagicNumber, 0, Green);
+            if (closeOrder) {
+                ordersCount--;
+                lastTicket = -1;
+            }
+        }
+    }
+    
+}
